@@ -1,0 +1,6 @@
+[submodule "veliora-be"]
+	path = veliora-be
+	url = git@github.com-veliora:usernameadmin5-cyber/veliora-be.git
+[submodule "veliora-fe"]
+	path = veliora-fe
+	url = git@github.com-veliora:usernameadmin5-cyber/veliora-fe.git

@@ -1,0 +1,130 @@
+version: '3.9'
+
+services:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  mongo:
+    image: mongo:7
+    container_name: veliora-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: veliora
+      MONGO_INITDB_ROOT_PASSWORD: secret
+      MONGO_INITDB_DATABASE: veliora
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: veliora-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./veliora-be
+      dockerfile: Dockerfile
+    container_name: veliora-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+
+      # Internal service URLs (container-to-container)
+      MONGODB_URI: mongodb://veliora:secret@mongo:27017/veliora?authSource=admin
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-"true"}
+
+      # Public URLs (used in redirects / CORS — must be reachable from browser)
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:3001
+
+      # JWT
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+
+      # Admin
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-secret}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-change-me-in-production}
+
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/v1/auth/google/callback}
+
+      # Vertex AI — Gemini (Google Cloud Console)
+      # Auth uses Application Default Credentials via the mounted service-account key.
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      GOOGLE_APPLICATION_CREDENTIALS: /keys/diploma-gemini-project-493816-869d0cdb1d32.json
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+
+      # Email sender
+      SMTP_FROM: ${SMTP_FROM:-Veliora}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+
+      # Premium periods
+      PREMIUM_MONTHLY_DAYS: ${PREMIUM_MONTHLY_DAYS:-30}
+      PREMIUM_YEARLY_DAYS: ${PREMIUM_YEARLY_DAYS:-365}
+
+      # Storage
+      STORAGE_LOCAL_PATH: ./uploads
+    volumes:
+      - ./veliora-be/uploads:/app/uploads
+      # Service-account key for Vertex AI auth (read-only).
+      - ./_key:/keys:ro
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./veliora-fe
+      dockerfile: Dockerfile
+      args:
+        # Baked into the Next.js bundle at build time — must be browser-accessible
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/v1}
+    container_name: veliora-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+
+volumes:
+  mongo_data:
+  redis_data:

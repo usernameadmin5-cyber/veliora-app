@@ -1,0 +1,44 @@
+# Overlay for ngrok demo — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build
+#
+# Everything is served through a single Nginx gateway on port 8080.
+# Point your ngrok tunnel at port 8080:
+#   ngrok http 8080
+
+version: '3.9'
+
+services:
+
+  # ── Nginx gateway (single public port) ─────────────────────────────────────
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: veliora-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+  # ── Frontend — rebuild with the ngrok public URL baked in ──────────────────
+  frontend:
+    build:
+      context: ./veliora-fe
+      dockerfile: Dockerfile
+      args:
+        # All API calls from the browser go through the ngrok tunnel → nginx → backend
+        NEXT_PUBLIC_API_URL: https://matt-uncelestial-kathi.ngrok-free.dev/v1
+    # Do NOT expose port 3000 publicly — only gateway talks to it
+    ports: []
+
+  # ── Backend — update public-facing URLs to the ngrok domain ────────────────
+  backend:
+    # Do NOT expose port 3001 publicly — only gateway talks to it
+    ports: []
+    environment:
+      # Browser-visible URLs (OAuth redirects, CORS) must use the ngrok domain
+      FRONTEND_URL: https://matt-uncelestial-kathi.ngrok-free.dev
+      BACKEND_URL:  https://matt-uncelestial-kathi.ngrok-free.dev
+      GOOGLE_CALLBACK_URL: https://matt-uncelestial-kathi.ngrok-free.dev/v1/auth/google/callback
