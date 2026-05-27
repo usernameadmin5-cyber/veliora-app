@@ -1,6 +1,13 @@
-# Veliora
+# Тема БКP "Розробка веб-застосунку для підтримки ментального здоров'я користувачів"
+## ПІБ автора
+### Юксел Софія Ерханівна
+## Ім’я та посада наукового керівника
+### Райтер Орест Костянтинович, PhD, викладач ПЗВО «ІТ СТЕП Університет»
+## Опис проєкту:
+### Veliora — веб-застосунок для підтримки ментального здоров’я користувачів.
 
-Mental-health and emotional-wellness web app. This is the **orchestration repo** — it pulls in two submodules (`veliora-be`, `veliora-fe`) and runs everything together via Docker Compose.
+
+## Структура репозиторію
 
 ```
 veliora-app/                 ← this repo
